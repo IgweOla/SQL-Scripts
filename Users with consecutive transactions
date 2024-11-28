@@ -1,0 +1,39 @@
+WITH MonthlyTransactions AS (
+    SELECT
+        Id,
+        FORMAT(Date, 'yyyy-MM') AS year_month, -- Format YYYY-MM
+        COUNT(*) AS withdrawals_in_month
+    FROM
+        Transactions
+    GROUP BY
+        Id, FORMAT(Date, 'yyyy-MM')
+),
+RankedTransactions AS (
+    SELECT
+        Id,
+        year_month,
+        ROW_NUMBER() OVER (PARTITION BY Id ORDER BY year_month) AS month_sequence --Rank each user withdrawal --
+    FROM
+        MonthlyTransactions
+),
+ConsecutiveMonths AS (
+    SELECT
+        a.Id,
+		MIN(b.year_month) AS first_month, -- Identify the first month of withdrawal
+        COUNT(*) AS consecutive_months
+    FROM
+        RankedTransactions a
+    JOIN RankedTransactions b
+        ON a.Id = b.Id
+        AND DATEADD(MONTH, 1, CAST(b.year_month + '-01' AS DATE)) = CAST(a.year_month + '-01' AS DATE) -- Compare consecutive months
+        AND a.month_sequence = b.month_sequence + 1
+    GROUP BY
+        a.Id
+    HAVING
+        COUNT(*) > 1 -- Adjust this to the number of months you consider successive
+)
+SELECT DISTINCT Id,first_month,
+    consecutive_months
+FROM ConsecutiveMonths
+Order by first_month;
+
